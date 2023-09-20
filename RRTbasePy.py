@@ -1,5 +1,6 @@
 import random
 import math
+import traceback
 import pygame
 
 
@@ -15,7 +16,7 @@ class RRTMap:
         pygame.display.set_caption(self.MapWindowName)
         self.map = pygame.display.set_mode((self.MapW, self.MapH))
         self.map.fill((255, 255, 255))
-        self.nodeRadius = 0
+        self.nodeRadius = 4
         self.nodeThickness = 0
         self.edgeThickness = 1
 
@@ -28,10 +29,13 @@ class RRTMap:
         self.Green = (0, 255, 0)
         self.Red = (255, 0, 0)
         self.white = (255, 255, 255)
+        self.Black = (0, 0, 0)
 
     def drawMap(self, obstacles):
-        pygame.draw.circle(self.map, self.Green, self.start, self.nodeRadius + 5, 0)
-        pygame.draw.circle(self.map, self.Red, self.goal, self.nodeRadius + 5, 0)
+        pygame.draw.circle(self.map, self.Green, self.start,
+                           self.nodeRadius + 5, 0)
+        pygame.draw.circle(self.map, self.Red, self.goal,
+                           self.nodeRadius + 5, 0)
         self.drawObs(obstacles)
 
     def drawPath(self):
@@ -47,18 +51,13 @@ class RRTMap:
 class RRTGraph:
     def __init__(self, start, goal, MapDimensions, obsData):
         (x, y) = start
-        self.start = start
-        self.goal = goal
+        self.start = Node(*start)
+        self.goal = Node(*goal)
         self.goalFlag = False
         self.MapH, self.MapW = MapDimensions
-        self.x = []
-        self.y = []
-        self.parent = []
 
         # initialize the tree
-        self.x.append(x)
-        self.y.append(y)
-        self.parent.append(0)
+        self.nodes = [Node(*start)]
 
         # initialize the obstacles
         self.obstacles = []
@@ -68,6 +67,9 @@ class RRTGraph:
         self.goalState = None
         self.path = []
 
+    def number_of_nodes(self):
+        return len(self.nodes)
+
     def makeObs(self):
         obs = []
         for (x, y, width, height) in self.obsData:
@@ -75,7 +77,7 @@ class RRTGraph:
             Collides = True
             while Collides:
                 rectang = pygame.Rect(x, y, width, height)
-                if rectang.collidepoint(self.start) or rectang.collidepoint(self.goal):
+                if rectang.collidepoint(self.start.coordinates) or rectang.collidepoint(self.goal.coordinates):
                     Collides = True
                 else:
                     Collides = False
@@ -83,14 +85,154 @@ class RRTGraph:
         self.obstacles = obs.copy()
         return obs
 
-    def add_node(self):
-        pass
+    def add_node(self, n, nodeCords):
+        self.nodes.insert(n, Node(*nodeCords))
 
-    def remove_node(self):
-        pass
+    def remove_node(self, node):
+        for i in range(0, self.number_of_nodes()):
+            if (self.nodes[i].isEqual(node)):
+                self.nodes.pop[i]
+                return
 
-    def addEdge(self):
-        pass
+    def addEdge(self, parent, child):
+        if isinstance(child, Node) and hasattr(child, 'setParent') and callable(child.setParent):
+            child.setParent(parent)
 
-    def removeEdge(self):
-        pass
+    def removeEdge(self, child):
+        if isinstance(child, Node) and hasattr(child, 'setParent') and callable(child.setParent):
+            child.setParent(None)
+
+    def distance(self, node1, node2):
+        if isinstance(node1, Node) and isinstance(node2, Node):
+            (x1, y1) = node1.coordinates
+            (x2, y2) = node2.coordinates
+            squared_distance = (float(x1) - float(x2))**2 + \
+                (float(y1) - float(y2))**2
+            return squared_distance**0.5
+
+    def sample_env(self):
+        x = int(random.uniform(0, self.MapW))
+        y = int(random.uniform(0, self.MapH))
+        return x, y
+
+    def randNode(self):
+        while True:
+            node = Node(*self.sample_env())
+            if self.isFree(node):
+                break
+        return node
+
+    def isFree(self, node):
+        if isinstance(node, Node):
+            (x, y) = node.coordinates
+            obs = self.obstacles.copy()
+            while len(obs) > 0:
+                rectang = obs.pop(0)
+                if rectang.collidepoint(x, y):
+                    return False
+            return True
+
+    def crossObstacle(self, x1, x2, y1, y2):
+        obs = self.obstacles.copy()
+        while (len(obs) > 0):
+            rectang = obs.pop(0)
+            for i in range(0, 101):
+                u = i / 100
+                x = x1 * u + x2 * (1 - u)
+                y = y1 * u + y2 * (1 - u)
+                if rectang.collidepoint(x, y):
+                    return True
+        return False
+
+    # this function connects the new nodes to the tree
+    def connect(self, node1, node2):
+        if isinstance(node1, Node) and isinstance(node2, Node):
+            (x1, y1) = node1.coordinates
+            (x2, y2) = node2.coordinates
+            if self.crossObstacle(x1, x2, y1, y2):
+                self.remove_node(node2)
+                return False
+            else:
+                self.add_node(self.number_of_nodes(), node2.coordinates)
+                self.addEdge(node1, node2)
+                return True
+
+    def isConnectable(self,node1,node2):
+        if isinstance(node1, Node) and isinstance(node2, Node):
+            (x1, y1) = node1.coordinates
+            (x2, y2) = node2.coordinates
+            if self.crossObstacle(x1, x2, y1, y2):
+                return False
+            else:
+                return True
+
+    def nearest(self, n):
+        dmin = self.distance(0, n)
+        nnear = 0
+        for i in range(0, n):
+            if self.distance(i, n) < dmin:
+                dmin = self.distance(i, n)
+                nnear = i
+        return nnear
+
+    def isInGraph(self, node):
+        for i in range(0, self.number_of_nodes()):
+            if (self.nodes[i].isEqual(node)):
+                return True
+        return False
+
+    def findNearRRT(self, node):
+        Nnear = None
+        minDis = self.distance(node, self.nodes[0])
+        for i in range(0, self.number_of_nodes()):
+            if (minDis >= self.distance(self.nodes[i], node)):
+                minDis = self.distance(self.nodes[i], node)
+                Nnear = self.nodes[i]
+        return Nnear
+
+    def getID(self, node):
+        # print(node[0])
+        # print(node[1])
+        for i in range(0, self.number_of_nodes()):
+            # print('===========================')
+            # print('node '+str(i))
+            # print(self.x[i])
+            # print(self.y[i])
+            if (self.nodes[i].isEqual(node)):
+                # print('id found')
+                # print('===========================')
+                return i
+        # print('no node with this id')
+        traceback.print_stack()
+        # print('===========================')
+        return 0
+
+    def cost(self, node):
+        if isinstance(node, Node):
+            if node.parent is None:
+                return 0
+            return self.distance(node, node.parent) + self.cost(node.parent)
+
+    def findNearRRTstar(self, node, RRT_Star_DMin):
+        Nnearest = None
+        minCost = float('inf')  # Initialize minCost as positive infinity
+        for other_node in self.nodes:
+            if self.distance(other_node, node) <= RRT_Star_DMin:
+                total_cost = self.cost(other_node) + self.distance(other_node, node)
+                if minCost > total_cost:
+                    Nnearest = other_node
+                    minCost = total_cost
+        return Nnearest
+
+
+
+class Node:
+    def __init__(self, x, y):
+        self.coordinates = (x, y)
+        self.parent = None
+
+    def isEqual(self, other_node):
+        return self.coordinates == other_node.coordinates
+
+    def setParent(self, parent):
+        self.parent = parent
