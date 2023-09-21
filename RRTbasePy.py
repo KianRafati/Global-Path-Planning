@@ -50,7 +50,6 @@ class RRTMap:
 
 class RRTGraph:
     def __init__(self, start, goal, MapDimensions, obsData):
-        (x, y) = start
         self.start = Node(*start)
         self.goal = Node(*goal)
         self.goalFlag = False
@@ -85,8 +84,9 @@ class RRTGraph:
         self.obstacles = obs.copy()
         return obs
 
-    def add_node(self, n, nodeCords):
-        self.nodes.insert(n, Node(*nodeCords))
+    def add_node(self, node):
+        if isinstance(node,Node):
+            self.nodes.append(node)
 
     def remove_node(self, node):
         for i in range(0, self.number_of_nodes()):
@@ -109,6 +109,7 @@ class RRTGraph:
             squared_distance = (float(x1) - float(x2))**2 + \
                 (float(y1) - float(y2))**2
             return squared_distance**0.5
+        return float('inf')
 
     def sample_env(self):
         x = int(random.uniform(0, self.MapW))
@@ -153,7 +154,7 @@ class RRTGraph:
                 self.remove_node(node2)
                 return False
             else:
-                self.add_node(self.number_of_nodes(), node2.coordinates)
+                self.add_node( node2 )
                 self.addEdge(node1, node2)
                 return True
 
@@ -176,35 +177,31 @@ class RRTGraph:
         return nnear
 
     def isInGraph(self, node):
-        for i in range(0, self.number_of_nodes()):
-            if (self.nodes[i].isEqual(node)):
-                return True
-        return False
+        if isinstance(node,Node):
+            for nodeI in self.nodes:
+                if (node.isEqual(nodeI)):
+                    return True
+            return False
 
     def findNearRRT(self, node):
-        Nnear = None
-        minDis = self.distance(node, self.nodes[0])
-        for i in range(0, self.number_of_nodes()):
-            if (minDis >= self.distance(self.nodes[i], node)):
-                minDis = self.distance(self.nodes[i], node)
-                Nnear = self.nodes[i]
-        return Nnear
+        if isinstance(node,Node):
+            Nnear = None
+            minDis = float('inf')
+            for nodeI in self.nodes:
+                if (minDis >= self.distance(nodeI, node)):
+                    minDis = self.distance(nodeI, node)
+                    Nnear = nodeI
+            return Nnear
 
     def getID(self, node):
         # print(node[0])
         # print(node[1])
-        for i in range(0, self.number_of_nodes()):
-            # print('===========================')
-            # print('node '+str(i))
-            # print(self.x[i])
-            # print(self.y[i])
-            if (self.nodes[i].isEqual(node)):
-                # print('id found')
-                # print('===========================')
-                return i
-        # print('no node with this id')
+        counter = 0
+        for nodeI in self.nodes:
+            counter += 1
+            if (nodeI.isEqual(node)):
+                return counter
         traceback.print_stack()
-        # print('===========================')
         return 0
 
     def cost(self, node):
@@ -232,7 +229,8 @@ class Node:
         self.parent = None
 
     def isEqual(self, other_node):
-        return self.coordinates == other_node.coordinates
+        if isinstance(other_node,Node):
+            return self.coordinates == other_node.coordinates
 
     def setParent(self, parent):
         self.parent = parent
