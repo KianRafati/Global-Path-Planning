@@ -85,7 +85,7 @@ class RRTGraph:
         return obs
 
     def add_node(self, node):
-        if isinstance(node,Node):
+        if isinstance(node, Node):
             self.nodes.append(node)
 
     def remove_node(self, node):
@@ -133,19 +133,30 @@ class RRTGraph:
                     return False
             return True
 
-    def crossObstacle(self, x1, x2, y1, y2):
+    import pygame
+
+
+    def crossObstacle(self, x1, x2, y1, y2, MWD):
         obs = self.obstacles.copy()
-        while (len(obs) > 0):
+        while len(obs) > 0:
             rectang = obs.pop(0)
+
+            # Inflate the obstacle's dimensions by MWD
+            inflated_rect = rectang.inflate(MWD, MWD)
+
             for i in range(0, 101):
                 u = i / 100
                 x = x1 * u + x2 * (1 - u)
                 y = y1 * u + y2 * (1 - u)
-                if rectang.collidepoint(x, y):
+
+                # Check if the line intersects with the inflated obstacle
+                if inflated_rect.collidepoint(x, y):
                     return True
+
         return False
 
     # this function connects the new nodes to the tree
+
     def connect(self, node1, node2):
         if isinstance(node1, Node) and isinstance(node2, Node):
             (x1, y1) = node1.coordinates
@@ -154,15 +165,15 @@ class RRTGraph:
                 self.remove_node(node2)
                 return False
             else:
-                self.add_node( node2 )
+                self.add_node(node2)
                 self.addEdge(node1, node2)
                 return True
 
-    def isConnectable(self,node1,node2):
+    def isConnectable(self, node1, node2,MWD):
         if isinstance(node1, Node) and isinstance(node2, Node):
             (x1, y1) = node1.coordinates
             (x2, y2) = node2.coordinates
-            if self.crossObstacle(x1, x2, y1, y2):
+            if self.crossObstacle(x1, x2, y1, y2,MWD):
                 return False
             else:
                 return True
@@ -177,14 +188,14 @@ class RRTGraph:
         return nnear
 
     def isInGraph(self, node):
-        if isinstance(node,Node):
+        if isinstance(node, Node):
             for nodeI in self.nodes:
                 if (node.isEqual(nodeI)):
                     return True
             return False
 
     def findNearRRT(self, node):
-        if isinstance(node,Node):
+        if isinstance(node, Node):
             Nnear = None
             minDis = float('inf')
             for nodeI in self.nodes:
@@ -215,12 +226,12 @@ class RRTGraph:
         minCost = float('inf')  # Initialize minCost as positive infinity
         for other_node in self.nodes:
             if self.distance(other_node, node) <= RRT_Star_DMin:
-                total_cost = self.cost(other_node) + self.distance(other_node, node)
+                total_cost = self.cost(other_node) + \
+                    self.distance(other_node, node)
                 if minCost > total_cost:
                     Nnearest = other_node
                     minCost = total_cost
         return Nnearest
-
 
 
 class Node:
@@ -229,7 +240,7 @@ class Node:
         self.parent = None
 
     def isEqual(self, other_node):
-        if isinstance(other_node,Node):
+        if isinstance(other_node, Node):
             return self.coordinates == other_node.coordinates
 
     def setParent(self, parent):
